@@ -15,8 +15,7 @@
 import os
 
 # Removing/Adding comment enables/disables theano GPU support
-os.environ[
-    'THEANO_FLAGS'] = 'mode=FAST_RUN,device=gpu,floatX=float32,nvcc.flags=-D_FORCE_INLINES'
+os.environ['THEANO_FLAGS'] = 'mode=FAST_RUN,device=gpu,floatX=float32,nvcc.flags=-D_FORCE_INLINES'
 # Removing/Adding comment forces/stops theano CPU support, usually used for model saving
 # os.environ['THEANO_FLAGS'] = 'device=cpu,force_device=True'
 
@@ -94,8 +93,9 @@ def load_data(cp, length, train):
         if train == 'train':
             p = np.random.permutation(X.shape[0])
             X = X[p]
+            output = cp[length].get('Experiment', 'output')
             prefix = cp[length].get('Experiment', 'prefix')
-            np.save(prefix + '_sda_random_perm.npy', p)
+            np.save(output+prefix + '_sda_random_perm.npy', p)
         return X
     log('DONE........')
 

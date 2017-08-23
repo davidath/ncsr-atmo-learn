@@ -83,9 +83,9 @@ def load_data(cp, train):
         if train == 'train':
             p = np.random.permutation(X.shape[0])
             X = X[p]
-            prefix = cp.get('Experiment', 'prefix')
-            num = cp.get('Experiment', 'num')
-            np.save(prefix + '_' + num + 'random_perm.npy', p)
+            output = cp[length].get('Experiment', 'output')
+            prefix = cp[length].get('Experiment', 'prefix')
+            np.save(output+prefix + '_random_perm.npy', p)
         return X
     log('DONE........')
 

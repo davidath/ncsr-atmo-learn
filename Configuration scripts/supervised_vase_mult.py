@@ -1,6 +1,6 @@
 ###############################################################################
-# This script is used for training/testing and saving a simple supervised
-# classification model, this model expects weather data and dispersions as input.
+# This script is an exact replica of the supervised_vase.py script. We simply use
+# different class e.g Conv2D -> Conv3D for the weather data, etc.
 # GPU support is usually enabled by default, if not see the comments below.
 # Input files must be numpy array or saved numpy objects (i.e *.npy),
 # hyperparameters and models are saved either as numpy objects (*.npy)
@@ -31,7 +31,7 @@ from sklearn.metrics import accuracy_score
 from lasagne.regularization import regularize_layer_params, l2
 from modeltemplate import Model
 import scipy.misc
-from sklearn.preprocessing import maxabs_scale
+from sklearn.preprocessing import maxabs_scale,minmax_scale
 
 
 # Load configuration file
@@ -46,6 +46,7 @@ def load_config(input_path):
 def log(s, label='INFO'):
     sys.stdout.write(label + ' [' + str(datetime.now()) + '] ' + str(s) + '\n')
     sys.stdout.flush()
+
 
 # Load training/testing data
 
@@ -77,31 +78,28 @@ def load_data(cp, train):
 
 def make_weather(cp, dataset):
     # Get Conv layer parameter for the "weather" neural network
-    varidx = int(cp.get('WConv1', 'varidx'))
-    lvlidx = int(cp.get('WConv1', 'lvlidx'))
-    featurex = int(cp.get('WConv1', 'feature_x'))
-    featurey = int(cp.get('WConv1', 'feature_y'))
+    varidx = int(cp.get('Weather', 'varidx'))
+    lvlidx = int(cp.get('Weather', 'lvlidx'))
+    featurex = int(cp.get('Weather', 'feature_x'))
+    featurey = int(cp.get('Weather', 'feature_y'))
+    channels = int(cp.get('Weather', 'channels'))
     # Retrieve the all weather data from "test" dataset
     dataset = dataset[:, 4]
     dataset = [x for x in dataset]
     dataset = np.array(dataset)
-    # Retrieve some variable from the test dataset in specific level
-    # VarIdx [0=U,1=V,2=GHT] and LvlIdx [0=500 hPa,1=700 hPa,2=900 hPa]
-    # e.g VarIdx=2,LvlIdx=1 -> GHT 700hPa
-    dataset = dataset[:, varidx, lvlidx, :, :]
+    # Retrieve ALL pressure levels for a specific variable e.g GHT 500-700-900 hPa
+    dataset = dataset[:, varidx, 0:lvlidx, :, :]
     # Reshape to 2D
-    dataset = dataset.reshape(dataset.shape[0],featurex*featurey)
+    dataset = dataset.reshape(dataset.shape[0],channels*featurex*featurey)
     # Scale
     dataset = minmax_scale(dataset)
-    # Reshape back to (sample_size, gridx, gridy)
-    dataset = dataset.reshape(dataset.shape[0],featurex,featurey)
     # Log shape for debugging purposes
     log(dataset.shape)
-    featurex = int(cp.get('WConv1', 'feature_x'))
-    featurey = int(cp.get('WConv1', 'feature_y'))
-    channels = int(cp.get('WConv1', 'channels'))
+    featurex = int(cp.get('Weather', 'feature_x'))
+    featurey = int(cp.get('Weather', 'feature_y'))
+    channels = int(cp.get('Weather', 'channels'))
     # Reshape to Conv compatible shape
-    dataset = dataset.reshape(dataset.shape[0], channels, featurex, featurey)
+    dataset = dataset.reshape(dataset.shape[0], 1, channels, featurex, featurey)
     # Create symbolic var for weather input
     input_var = theano.shared(name='input_var', value=np.asarray(dataset,
                                                                  dtype=theano.config.floatX),
@@ -119,69 +117,89 @@ def init_weather_conv(cp, dataset):
     # initializing every aspect of each network in the same function.
 
     # Get Conv layer parameter for the "weather" neural network
-    featurex = int(cp.get('WConv1', 'feature_x'))
-    featurey = int(cp.get('WConv1', 'feature_y'))
-    varidx = int(cp.get('WConv1', 'varidx'))
-    lvlidx = int(cp.get('WConv1', 'lvlidx'))
-    # Retrieve the all weather data from "test" dataset
+    featurex = int(cp.get('Weather', 'feature_x'))
+    featurey = int(cp.get('Weather', 'feature_y'))
+    varidx = int(cp.get('Weather', 'varidx'))
+    lvlidx = int(cp.get('Weather', 'lvlidx'))
+    channels = int(cp.get('Weather', 'channels'))
     dataset = dataset[:, 4]
     dataset = [x for x in dataset]
     dataset = np.array(dataset)
-    # Retrieve some variable from the test dataset in specific level
-    # VarIdx [0=U,1=V,2=GHT] and LvlIdx [0=500 hPa,1=700 hPa,2=900 hPa]
-    # e.g VarIdx=2,LvlIdx=1 -> GHT 700hPa
-    dataset = dataset[:, varidx, lvlidx, :, :]
+    # Retrieve ALL pressure levels for a specific variable e.g GHT 500-700-900 hPa
+    dataset = dataset[:, varidx, 0:lvlidx, :, :]
+    log(dataset.shape)
     # Reshape to 2D
-    dataset = dataset.reshape(dataset.shape[0],featurex*featurey)
+    dataset = dataset.reshape(dataset.shape[0],channels*featurex*featurey)
     # Scale
     dataset = minmax_scale(dataset)
-    # Log shape for debugging purposes
-    log(dataset.shape)
-    channels = int(cp.get('WConv1', 'channels'))
+    channels = int(cp.get('Weather', 'channels'))
     # Reshape to Conv compatible shape
-    dataset = dataset.reshape(dataset.shape[0], channels, featurex, featurey)
+    dataset = dataset.reshape(dataset.shape[0], 1, channels, featurex, featurey)
+    log(dataset.shape)
     # Create symbolic var for weather input
     input_var = theano.shared(name='input_var', value=np.asarray(dataset,
                                                                  dtype=theano.config.floatX),
                               borrow=True)
-    # Get convolutional layer parameters
-    conv_filters = int(cp.get('WConv1', 'convfilters'))
-    filter_sizes = int(cp.get('WConv1', 'filtersize'))
-    stride = int(cp.get('WConv1', 'stride'))
-    channels = int(cp.get('WConv1', 'channels'))
-    pool_size = int(cp.get('WPool', 'pool'))
+    # Get Weather nnet parameters
+    def_filters = int(cp.get('Default','filters'))
+    def_filter_size = int(cp.get('Default','filter_size'))
+    def_stride = int(cp.get('Default','stride'))
+    def_padding = int(cp.get('Default','padding'))
+    channels = int(cp.get('Weather', 'channels'))
+    pool_size = int(cp.get('W1', 'pool'))
     # Layer stacking
+    # Layer stacking (Weather Subnetwork #1)
+    # ------------------------------------------------------------------------
     # Input layer
-    input_layer = network = lasagne.layers.InputLayer(shape=(None, channels, featurex, featurey),
+    input_layer = network = lasagne.layers.InputLayer(shape=(None, 1, channels, featurex, featurey),
                                                       input_var=input_var)
-    # Conv layer
-    network = lasagne.layers.Conv2DLayer(incoming=network,
-                                         num_filters=conv_filters, filter_size=(
-                                             filter_sizes, filter_sizes),
-                                         stride=int(cp.get('WConv1', 'stride')),
-                                         pad=int(cp.get('WConv1','pad'))
+    # Convolutional layer #1 (3D)
+    network = lasagne.layers.Conv3DLayer(incoming=network,
+                                         num_filters=def_filters, filter_size=def_filter_size,
+                                         stride=def_stride,
+                                         pad=def_padding
                                          )
-    # Check for double stacking of convolutional layers.
-    try:
-        network = lasagne.layers.Conv2DLayer(incoming=network,
-                                             num_filters=int(cp.get('WConv2','convfilters')),
-                                             filter_size=(
-                                                int(cp.get('WConv2','filtersize')),
-                                                 int(cp.get('WConv2','filtersize'))),
-                                             stride=int(cp.get('WConv2', 'stride')),
-                                             pad=int(cp.get('WConv2','pad'))
-                                             )
-    except:
-        pass
-    # Maxpool layer
-    network = lasagne.layers.MaxPool2DLayer(
-        incoming=network, pool_size=(pool_size, pool_size))
-    # Flatten output of weather network
-    network = lasagne.layers.ReshapeLayer(
-        incoming=network, shape=([0], -1))
-    log('Printing Weather Net Structure.......')
-    log(lasagne.layers.get_output_shape(lasagne.layers.get_all_layers(network)))
-    return [input_layer, input_var, network]
+    # Convolutional layer #2 (3D)
+    network = lasagne.layers.Conv3DLayer(incoming=network,
+                                         num_filters=int(cp.get('W1', 'convfilters')),
+                                          filter_size=(2,int(cp.get('W1', 'filtersize')),int(cp.get('W1', 'filtersize'))),
+                                         stride=(1,int(cp.get('W1', 'stride')),int(cp.get('W1', 'stride'))),
+                                         pad=(0,int(cp.get('W1','pad')),int(cp.get('W1','pad')))
+                                         )
+    # Maxpool (3D)
+    network = lasagne.layers.MaxPool3DLayer(
+        incoming=network, pool_size=(1,pool_size,pool_size))
+    # End of layer stacking for Weather Subnetwork #1
+    # ########################################################################
+
+    # Layer stacking (Weather Subnetwork #2)
+    # ------------------------------------------------------------------------
+    # Input layer
+    network2 = input_layer
+    # Convolutional layer #1 (3D)
+    network2 = lasagne.layers.Conv3DLayer(incoming=network2,
+                                         num_filters=def_filters, filter_size=def_filter_size,
+                                         stride=def_stride,
+                                         pad=def_padding
+                                         )
+    # Convolutional layer #2 (3D)
+    network2 = lasagne.layers.Conv3DLayer(incoming=network2,
+                                         num_filters=int(cp.get('W2', 'convfilters')),
+                                          filter_size=(2,int(cp.get('W2', 'filtersize')),int(cp.get('W2', 'filtersize'))),
+                                         stride=(1,int(cp.get('W2', 'stride')),int(cp.get('W2', 'stride'))),
+                                         pad=(0,int(cp.get('W2','pad')),int(cp.get('W2','pad')))
+                                         )
+    # Maxpool (3D)
+    network2 = lasagne.layers.MaxPool3DLayer(
+        incoming=network2, pool_size=(1,pool_size,pool_size))
+    # Flatten both subnetworks for concatenation
+    network = lasagne.layers.FlattenLayer(network)
+    network2 = lasagne.layers.FlattenLayer(network2)
+    # Connect subnetworks
+    out = lasagne.layers.ConcatLayer(incomings=(network,network2),axis=1)
+    # log('Printing Weather Net Structure.......')
+    # log(lasagne.layers.get_output_shape(lasagne.layers.get_all_layers(network)))
+    return [input_layer, input_var, out]
 
 # Create dispersion input that is used to get output of the network
 
@@ -189,12 +207,9 @@ def make_disp(cp, dataset):
     # Retrieve all dispersions from "test" dataset
     dataset = dataset[:, 3]
     # Get parameters
-    featurex = int(cp.get('DConv1', 'feature_x'))
-    featurey = int(cp.get('DConv1', 'feature_y'))
-    conv_filters = int(cp.get('DConv1', 'convfilters'))
-    filter_sizes = int(cp.get('DConv1', 'filtersize'))
-    stride = int(cp.get('DConv1', 'stride'))
-    channels = int(cp.get('DConv1', 'channels'))
+    featurex = int(cp.get('Dispersion', 'feature_x'))
+    featurey = int(cp.get('Dispersion', 'feature_y'))
+    channels = int(cp.get('Dispersion', 'channels'))
     # Resize each dispersion, the dispersion are treated as image
     dataset = [scipy.misc.imresize(x, (featurex, featurey)) for x in dataset]
     dataset = np.array(dataset)
@@ -222,13 +237,14 @@ def init_disp_conv(cp, dataset):
     # Retrieve all dispersions from "test" dataset
     dataset = dataset[:, 3]
     # Get parameters
-    featurex = int(cp.get('DConv1', 'feature_x'))
-    featurey = int(cp.get('DConv1', 'feature_y'))
-    conv_filters = int(cp.get('DConv1', 'convfilters'))
-    filter_sizes = int(cp.get('DConv1', 'filtersize'))
-    stride = int(cp.get('DConv1', 'stride'))
-    channels = int(cp.get('DConv1', 'channels'))
-    pool_size = int(cp.get('DPool', 'pool'))
+    featurex = int(cp.get('Dispersion', 'feature_x'))
+    featurey = int(cp.get('Dispersion', 'feature_y'))
+    channels = int(cp.get('Dispersion', 'channels'))
+    pool_size = int(cp.get('D1', 'pool'))
+    def_filters = int(cp.get('Default','filters'))
+    def_filter_size = int(cp.get('Default','filter_size'))
+    def_stride = int(cp.get('Default','stride'))
+    def_padding = int(cp.get('Default','padding'))
     # Resize each dispersion, the dispersion are treated as image
     dataset = [scipy.misc.imresize(x, (featurex, featurey)) for x in dataset]
     dataset = np.array(dataset)
@@ -241,37 +257,60 @@ def init_disp_conv(cp, dataset):
     input_var = theano.shared(name='input_var', value=np.asarray(dataset,
                                                                  dtype=theano.config.floatX),
                               borrow=True)
-    # Layer stacking
+    # Layer stacking (Dispersion subnetwork #1)
+    # ------------------------------------------------------------------------
     # Input layer
     input_layer = network = lasagne.layers.InputLayer(shape=(None, channels, featurex, featurey),
                                                       input_var=input_var)
-    # Conv layer
+    # Introduce padding
+    pad = network = lasagne.layers.PadLayer(incoming=network,width=((0,1),(1,0)))
+    # Convolutional layer #1
     network = lasagne.layers.Conv2DLayer(incoming=network,
-                                         num_filters=conv_filters, filter_size=(
-                                             filter_sizes, filter_sizes),
-                                         stride=int(cp.get('DConv1', 'stride')),
-                                         pad=int(cp.get('DConv1','pad')))
-    # Check for double stacking of convolutional layers
-    try:
-        network = lasagne.layers.Conv2DLayer(incoming=network,
-                                             num_filters=int(cp.get('DConv2','convfilters')),
-                                             filter_size=(
-                                                int(cp.get('DConv2','filtersize')),
-                                                 int(cp.get('DConv2','filtersize'))),
-                                             stride=int(cp.get('DConv2', 'stride')),
-                                             pad=int(cp.get('DConv2','pad'))
-                                                )
-    except:
-        pass
-    # Maxpool layer
+                                         num_filters=def_filters, filter_size=(
+                                             def_filter_size, def_filter_size),
+                                         stride=def_stride,
+                                         pad=def_padding
+                                         )
+    # Convolutional layer #2 (by default)
+    network = lasagne.layers.Conv2DLayer(incoming=network,
+                                         num_filters=int(cp.get('D1', 'convfilters')), filter_size=(
+                                             int(cp.get('D1', 'filtersize')), int(cp.get('D1', 'filtersize'))),
+                                         stride=int(cp.get('D1', 'stride')),
+                                         pad=int(cp.get('D1','pad')))
+    # Maxpool
     network = lasagne.layers.MaxPool2DLayer(
         incoming=network, pool_size=(pool_size, pool_size))
-    # Flatten output of Dispersion network
-    network = lasagne.layers.ReshapeLayer(
-        incoming=network, shape=([0], -1))
-    log('Printing Dispersion Net Structure.......')
-    log(lasagne.layers.get_output_shape(lasagne.layers.get_all_layers(network)))
-    return [input_layer, input_var, network]
+    # End of layer stacking for subnetwork #1
+    # ########################################################################
+
+    # Layer stacking (Dispersion subnetwork #2)
+    # ------------------------------------------------------------------------
+    # Subnetwork #1 till padding
+    network2 = pad
+    # Convolutional layer #1 (different params)
+    network2 = lasagne.layers.Conv2DLayer(incoming=network2,
+                                         num_filters=def_filters, filter_size=(
+                                             def_filter_size, def_filter_size),
+                                         stride=def_stride,
+                                         pad=def_padding
+                                         )
+    # Convolutional layer #2 (different params)
+    network2 = lasagne.layers.Conv2DLayer(incoming=network2,
+                                         num_filters=int(cp.get('D2', 'convfilters')), filter_size=(
+                                             int(cp.get('D2', 'filtersize')), int(cp.get('D2', 'filtersize'))),
+                                         stride=int(cp.get('D2', 'stride')),
+                                         pad=int(cp.get('D2','pad')))
+    # Maxpool
+    network2 = lasagne.layers.MaxPool2DLayer(
+        incoming=network2, pool_size=(pool_size, pool_size))
+    # Flatten both subnetworks
+    network = lasagne.layers.FlattenLayer(network)
+    network2 = lasagne.layers.FlattenLayer(network2)
+    # Connect subnetworks
+    out = lasagne.layers.ConcatLayer(incomings=(network,network2),axis=1)
+    # log('Printing Dispersion Net Structure.......')
+    # log(lasagne.layers.get_output_shape(lasagne.layers.get_all_layers(network)))
+    return [input_layer, input_var, out]
 
 # Initalization of the deep neural network where the "Weather" and "Disperion"
 # network outputs get concatenated
@@ -299,12 +338,12 @@ def init(cp, dataset):
                                         num_units=int(
                                             cp.get('NeuralNetwork', 'hidden0')),
                                         )
-    # Fully connected #2, Shape: Compressing
+    # Fully connected #2, Shape: compressing
     network = lasagne.layers.DenseLayer(incoming=network,
                                         num_units=int(
                                             cp.get('NeuralNetwork', 'hidden1')),
                                         )
-    # Fully connected #3, Shape: Convert to original
+    # Fully connected #3, Shape: convert to original
     network = lasagne.layers.DenseLayer(incoming=network,
                                         num_units=int(
                                             cp.get('NeuralNetwork', 'hidden2')),
@@ -315,19 +354,14 @@ def init(cp, dataset):
                                             cp.get('NeuralNetwork', 'stationnum')),
                                         nonlinearity=lasagne.nonlinearities.softmax
                                         )
-    log(lasagne.layers.get_output_shape(lasagne.layers.get_all_layers(network)))
     # Check for pretrained model, the dataset was split into 4 due to the fact that
     # GPU memory couldn't support the parameters of network as well as the dataset.
     try:
         # If pretrained model exists then load it's parameters to this one.
         params = np.load(output+'sharing_model.npy')
         lasagne.layers.set_all_param_values(network,params)
-        test_w = test.W.eval()
-        assert np.array_equal(test_w,params[8])
-        # log(str(np.array_equal(test_w,params[8])))
         log('Found pretrained model.....')
         log('Training with pretrained weights......')
-        log('Are weights equal? '+str(np.array_equal(test_w,params[8])))
     except:
         pass
     # Initialize train function
@@ -348,30 +382,41 @@ def init(cp, dataset):
         updates=updates, givens={win_layer.input_var: win[index:index + batch_size, :],
                              din_layer.input_var: din[index:index + batch_size, :]})
     # Start training
-    for epoch in xrange(lw_epochs):
-        epoch_loss = 0
-        for row in xrange(0, dataset.shape[0], batch_size):
-            pos = dataset[row:row+batch_size,1]
-            x = np.zeros(shape=(len(pos),20),dtype=np.float32)
-            for i,arr in enumerate(x):
-                arr[pos[i]] = 1
-            loss = train(row, x, base_lr)
-            epoch_loss += loss
-        epoch_loss = float(epoch_loss) / (dataset.shape[0] * 1.0 / batch_size)
-        # Print loss every 10 epochs
-        if epoch % 10 == 0:
-            log(str(epoch) + ' ' + str(epoch_loss),
-                label='Supervised')
-        # Decrease learning rate, depending on the decay
-        if (epoch % lr_decay == 0 ) and (epoch != 0):
-            base_lr = base_lr / 10.0
-        # Save model as object, every 100 epochs
-        if (epoch % 100 == 0) and (epoch != 0) :
-            np.save(output+prefix + '_model.npy',lasagne.layers.get_all_param_values(network))
-    log('Saving......')
-    # Saving hyperparameters and model, numpy objects are used for compatibility
-    np.save(output+prefix + '_model.npy',lasagne.layers.get_all_param_values(network))
-    np.save(output+'sharing_model.npy',lasagne.layers.get_all_param_values(network))
+    # The training of this model is a lengthy procedure that we might want to
+    # interrupt before reaching the epoch objective. Introduce model saving when
+    # CTRL+C is detected
+    try:
+        for epoch in xrange(lw_epochs):
+            epoch_loss = 0
+            for row in xrange(0, dataset.shape[0], batch_size):
+                pos = dataset[row:row+batch_size,1]
+                x = np.zeros(shape=(len(pos),20),dtype=np.float32)
+                for i,arr in enumerate(x):
+                    arr[pos[i]] = 1
+                loss = train(row, x, base_lr)
+                epoch_loss += loss
+            epoch_loss = float(epoch_loss) / (dataset.shape[0] * 1.0 / batch_size)
+            # Print loss every 10 epochs
+            if epoch % 10 == 0:
+                log(str(epoch) + ' ' + str(epoch_loss),
+                    label='Supervised')
+            # Decrease learning rate, depending on the decay
+            if (epoch % lr_decay == 0 ) and (epoch != 0):
+                base_lr = base_lr / 10.0
+            # Save model as object, every 50 epochs
+            if (epoch % 50 == 0) and (epoch != 0) :
+                np.save(output+prefix + '_model.npy',lasagne.layers.get_all_param_values(network))
+        log('Saving......')
+        # Saving hyperparameters and model, numpy objects are used for compatibility
+        np.save(output+prefix + '_model.npy',lasagne.layers.get_all_param_values(network))
+        np.save(output+'sharing_model.npy',lasagne.layers.get_all_param_values(network))
+    except KeyboardInterrupt:
+        # On CTRL+C detection.....
+        #log('Saving......')
+        np.save(output+prefix + '_model.npy',lasagne.layers.get_all_param_values(network))
+        np.save(output+'sharing_model.npy',lasagne.layers.get_all_param_values(network))
+    # Remove comments for testing accuracy
+
     # win_layer.input_var = make_weather(cp,dataset_test)
     # din_layer.input_var = make_disp(cp,dataset_test)
     # prediction = lasagne.layers.get_output(network).argmax(axis=1).eval()
@@ -387,7 +432,7 @@ def init(cp, dataset):
 # Loads hyperparameters from previous pretrained experiment and reconstructs the model.
 # Used for model archiving or testing.
 
-def init_pretrained(cp, dataset_test):
+def init_pretrained(cp, dataset_test, batch):
     output = cp.get('Experiment','output')
     prefix = cp.get('Experiment','prefix')
     # Create "Weather" neural network
@@ -453,7 +498,9 @@ def init_pretrained(cp, dataset_test):
     #     scores = sorted(scores, key=lambda x: x[1], reverse=True)
     #     results.append((origin,raw_preds,scores))
     # results = np.asarray(results,dtype=object)
-    # np.save(output+prefix+'_test_results.npy',results)
+    # np.save(output+prefix+'_test_results_'+str(batch)+'.npy',results)
+
+
 
 
 # Control flow
@@ -469,7 +516,7 @@ def main(path, train):
 from operator import attrgetter
 from argparse import ArgumentParser
 if __name__ == "__main__":
-    parser = ArgumentParser(description='Training/Testing for simple supervised classification')
+    parser = ArgumentParser(description='Extract variables from netcdf file')
     # Configuration file path
     parser.add_argument('-i', '--input', required=True, type=str,
                         help='config file')

@@ -18,13 +18,6 @@ if __name__ == '__main__':
     opts = parser.parse_args()
     getter = attrgetter('input','num','output')
     inp,num,output = getter(opts)
-    # data_dict = netCDF_subset(
-    #  inp, [500,700,900], ['UU','VV','GHT'], lvlname='num_metgrid_levels', timename='Times')
-    # items = [data_dict.extract_piece(range(0,16072),range(0,64),range(0,64))]
-    # items = np.array(items)
-    # ds = Dataset_transformations(items, 1000, items.shape)
-    # print ds._items.shape
-    # np.savez_compressed('UVGEO_3lvl',ds._items)
     dataset = np.load(inp)
     data_x = dataset.shape[0]
     data_y = dataset.shape[1]

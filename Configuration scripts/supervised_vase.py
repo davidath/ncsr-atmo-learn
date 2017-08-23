@@ -125,7 +125,7 @@ def init_weather_conv(cp, dataset):
     featurey = int(cp.get('Weather', 'feature_y'))
     varidx = int(cp.get('Weather', 'varidx'))
     lvlidx = int(cp.get('Weather', 'lvlidx'))
-    # Retrieve the all dispersions from "test" dataset
+    # Retrieve the all weather data from "test" dataset
     dataset = dataset[:, 4]
     dataset = [x for x in dataset]
     dataset = np.array(dataset)
@@ -424,6 +424,8 @@ def init(cp, dataset):
         #log('Saving......')
         np.save(output+prefix + '_model.npy',lasagne.layers.get_all_param_values(network))
         np.save(output+'sharing_model.npy',lasagne.layers.get_all_param_values(network))
+    # Remove comments for testing accuracy
+
     # win_layer.input_var = make_weather(cp,dataset_test)
     # din_layer.input_var = make_disp(cp,dataset_test)
     # prediction = lasagne.layers.get_output(network).argmax(axis=1).eval()
