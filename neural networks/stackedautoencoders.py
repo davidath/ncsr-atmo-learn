@@ -31,7 +31,7 @@ import dataset_utils as utils
 import lasagne
 from modeltemplate import Model
 
-MNIST_PATH = '/mnt/disk1/thanasis/autoencoder/'
+MNIST_PATH = '.'
 
 # Load config files, due to the fact that we need to train each autoencoder
 # individually we need to load multiple autoencoder config files

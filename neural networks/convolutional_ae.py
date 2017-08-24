@@ -32,7 +32,7 @@ from sklearn.utils.linear_assignment_ import linear_assignment
 from lasagne.regularization import regularize_layer_params, l2
 from modeltemplate import Model
 
-MNIST_PATH = '/mnt/disk1/thanasis/autoencoder/'
+MNIST_PATH = '.'
 
 # Load conv autoencoder configuration file
 
