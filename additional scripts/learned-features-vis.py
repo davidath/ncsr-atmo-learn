@@ -21,10 +21,10 @@ def log(s, label='INFO'):
     sys.stdout.write(label + ' [' + str(datetime.now()) + '] ' + str(s) + '\n')
     sys.stdout.flush()
 
+PATH=''
 
 def AM_dense(nnmodel):
-    [X1, labels1] = utils.load_mnist(
-        dataset='training', path='../examples/sda')
+    X1 = np.load(PATH)
     x = T.matrix('x')
     nnmodel._input_layer.input_var = x
     activation = layers.get_output(nnmodel._encoder_layer).mean()
@@ -53,7 +53,7 @@ def AM_dense(nnmodel):
 
 
 def AM_conv(nnmodel, conv, idx):
-    X1 = np.load('/mnt/disk1/thanasis/NIPS/GHT_ALL_vanilla.npy')
+    X1 = np.load(PATH)
     lconv = layers.get_all_layers(nnmodel._network)[conv]
     x = T.matrix('x')
     nnmodel._input_layer.input_var = x
@@ -141,7 +141,7 @@ def map_contour(data, title=None):
     nc_fid.close()
 
 def visualize_conv(nnmodel):
-    train = np.load('/mnt/disk1/thanasis/NIPS/GHT_ALL_vanilla.npy')
+    train = np.load(PATH)
     import theano
     nnmodel._input_layer.input_var = theano.shared(name='input_var',
                                   value=np.asarray(train,
